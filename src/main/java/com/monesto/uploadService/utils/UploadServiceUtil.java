@@ -16,8 +16,13 @@ import java.util.Random;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import redis.clients.jedis.Jedis;
-import redis.clients.jedis.JedisPool;
+import com.amazonaws.auth.AWSStaticCredentialsProvider;
+import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.services.sqs.AmazonSQS;
+import com.amazonaws.services.sqs.AmazonSQSClient;
+import com.amazonaws.services.sqs.model.SendMessageRequest;
+import com.amazonaws.services.sqs.model.SendMessageResult;
+
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
@@ -43,14 +48,25 @@ public class UploadServiceUtil {
 	private static final String S3_SECRET_ACCESS_KEY = "s3SecretAccessKey";
 	private static final String REDIS_URL = "redis.url";
 	private static final String REDIS_PORT = "redis.port";
+	private static final String REDIS_AUTH_TOKEN = "redis.token";
 	private static final String KEY_LENGTH = "keyLen";
+	private static final String SQS_URL = "sqs.url";
+    private static final Region REGION = Region.AP_SOUTH_1;
+
+
 	
 	private static String awsAccessKey = "";
 	private static String secretAccessKey = "";
-	private static String redisUrl = "";
-	private static Integer redisPort = 0;
 	private static Properties properties = new Properties();
 	private static Integer keyLen = 6;
+	private static String sqsUrl = "";
+	private static AwsCredentials credentials = null;
+	private static S3AsyncClient s3AsyncClient = null;
+	private static S3TransferManager transferManager = null;
+	private static AmazonSQS amazonSQS;
+	private static SendMessageRequest sendMessageRequest = new SendMessageRequest();
+
+
 	
 	
 	/**
@@ -134,19 +150,10 @@ public class UploadServiceUtil {
 	public static int uploadToS3(String localLocation, String bucketLocation) {
 		LOGGER.info("Entered into uploadToS3 ");
 		Instant start = Instant.now();
-		AwsCredentials credentials = AwsBasicCredentials.create(awsAccessKey, secretAccessKey);
-        Region region = Region.AP_SOUTH_1;
         int noOfFilesUploaded = 0;
-        S3AsyncClient s3AsyncClient = S3AsyncClient.builder()
-                .credentialsProvider(StaticCredentialsProvider.create(credentials))
-                .region(region)
-                .build();
         
-        try {
-            S3TransferManager transferManager = S3TransferManager.builder()
-                    .s3Client(s3AsyncClient)
-                    .build();
-            
+        
+        try {            
             DirectoryUpload directoryUpload = transferManager.uploadDirectory(UploadDirectoryRequest.builder()
                     .source(Paths.get(localLocation))
                     .bucket(BUCKET_NAME).s3Prefix(bucketLocation)
@@ -184,11 +191,13 @@ public class UploadServiceUtil {
 	public static Boolean addProcessToQueue(String uniqueId) {
 		LOGGER.info("Entered inside addProcessToQueue().");
 		Boolean isSaved = Boolean.FALSE;
-		try (Jedis jedis = new JedisPool(redisUrl,redisPort).getResource()){
-			jedis.lpush(BUCKET_NAME, uniqueId);
+		try {
+			sendMessageRequest.withMessageBody(uniqueId);
+			SendMessageResult res = amazonSQS.sendMessage(sendMessageRequest);
+			LOGGER.info("Queue response message: " + ((null!= res)?res.toString():null));
 			isSaved = Boolean.TRUE;
-		}catch (Exception ex) {
-			LOGGER.error("Exception occured in addProcessToQueue(): ", ex);
+		} catch (Exception e) {
+			LOGGER.error("Exception occured while adding to queue", e);
 		}
 		return isSaved;
 	}
@@ -218,17 +227,44 @@ public class UploadServiceUtil {
 			
 			awsAccessKey = properties.getProperty(S3_ACCESS_KEY);
 			secretAccessKey = properties.getProperty(S3_SECRET_ACCESS_KEY);
-			redisUrl = properties.getProperty(REDIS_URL);
-			redisPort = (null != properties.getProperty(REDIS_PORT))
-					?Integer.parseInt(properties.getProperty(REDIS_PORT)):redisPort;
+			sqsUrl = properties.getProperty(SQS_URL);
 			keyLen = (null != properties.getProperty(KEY_LENGTH))
 					?Integer.parseInt(properties.getProperty(KEY_LENGTH)):keyLen;
+			initializeAWSCreds();
 			return;
+			
 		}
 		LOGGER.info("Unable to fetch credentials.properties file path from env variable.");
 	}
 	
 	
+	/**
+	 * Initialize all required AWS context for faster uploads
+	 */
+	private static void initializeAWSCreds() {
+		LOGGER.info("Initializing Aws context");
+		try {
+			credentials = AwsBasicCredentials.create(awsAccessKey, secretAccessKey);
+			s3AsyncClient = S3AsyncClient.builder()
+			        .credentialsProvider(StaticCredentialsProvider.create(credentials))
+			        .region(REGION)
+			        .build();
+			transferManager = S3TransferManager.builder()
+			        .s3Client(s3AsyncClient)
+			        .build();
+			amazonSQS =  AmazonSQSClient.builder()
+			            .withRegion(REGION.toString())
+			            .withCredentials(new AWSStaticCredentialsProvider( new BasicAWSCredentials(awsAccessKey,secretAccessKey)))
+			            .build();
+			sendMessageRequest.withQueueUrl(sqsUrl)
+			        .withMessageGroupId(BUCKET_NAME);
+		} catch (Exception e) {
+			LOGGER.error("Exception occured while initializing AWS context for S3 and SQS", e);
+		}
+		LOGGER.info("Exit from initializeAWSCreds()");
+	}
+
+
 	/**
 	 * static method to close input stream if not null.
 	 * @param fileInputStream

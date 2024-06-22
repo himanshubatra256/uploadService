@@ -24,6 +24,7 @@ public class UploadServiceController {
 	public static final String SUCCESS = "Success";
 	public static final String FAILURE = "Failure";
 	public static final String DOWNLOAD_FAIL = "Download Failure !!!";
+	public static final String QUEUE_UPDATION_FAILED = "Queue updation Failure !!!";
 	
 	
 	/**
@@ -56,7 +57,9 @@ public class UploadServiceController {
     	
     	Boolean isQueueUpdated = UploadServiceUtil.addProcessToQueue(uniqueId);
     	LOGGER.info("Queue updation status: " +  isQueueUpdated);
-    	
+    	if(Boolean.FALSE.equals(isQueueUpdated)) {
+    		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(QUEUE_UPDATION_FAILED);
+    	}
     	
     	return ResponseEntity.status(HttpStatus.OK).body(uniqueId);
     }
