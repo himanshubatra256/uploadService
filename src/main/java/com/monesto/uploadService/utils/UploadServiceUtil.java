@@ -46,9 +46,6 @@ public class UploadServiceUtil {
 	private static final String CREDS_FILE_NAME = "credentials.properties";
 	private static final String S3_ACCESS_KEY = "s3AccessKey";
 	private static final String S3_SECRET_ACCESS_KEY = "s3SecretAccessKey";
-	private static final String REDIS_URL = "redis.url";
-	private static final String REDIS_PORT = "redis.port";
-	private static final String REDIS_AUTH_TOKEN = "redis.token";
 	private static final String KEY_LENGTH = "keyLen";
 	private static final String SQS_URL = "sqs.url";
     private static final Region REGION = Region.AP_SOUTH_1;
