@@ -173,7 +173,6 @@ public class UploadServiceUtil {
         	Instant end = Instant.now();
         	Duration timeTaken = Duration.between(start,end);
         	LOGGER.info("Time taken to upload the files to S3: "+ timeTaken.toString() + " ms");
-        	s3AsyncClient.close();
         }
 		return noOfFilesUploaded;
 	}
