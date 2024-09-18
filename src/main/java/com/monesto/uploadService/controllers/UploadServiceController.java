@@ -32,8 +32,8 @@ public class UploadServiceController {
 	 * @return HttpStatus.OK
 	 */
 	@GetMapping("/health")
-	public ResponseEntity<Boolean> healthCheck(){
-		return ResponseEntity.status(HttpStatus.OK).body(true);
+	public ResponseEntity<String> healthCheck(){
+		return ResponseEntity.status(HttpStatus.OK).body("Healthy");
 	}
 	
 	

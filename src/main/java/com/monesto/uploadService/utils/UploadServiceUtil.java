@@ -54,7 +54,6 @@ public class UploadServiceUtil {
 	
 	private static String awsAccessKey = "";
 	private static String secretAccessKey = "";
-	private static Properties properties = new Properties();
 	private static Integer keyLen = 6;
 	private static String sqsUrl = "";
 	private static AwsCredentials credentials = null;
@@ -62,6 +61,7 @@ public class UploadServiceUtil {
 	private static S3TransferManager transferManager = null;
 	private static AmazonSQS amazonSQS;
 	private static SendMessageRequest sendMessageRequest = new SendMessageRequest();
+	public static Properties properties = new Properties();
 
 
 	
